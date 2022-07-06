@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<head>
+	<hta:application id=hta borderStyle="normal" windowstate="maximize"
+	     applicationName="DB Schema (Oracle)" version="0.70 @20220706" />   
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<meta http-equiv="x-ua-compatible" content="ie=9">    
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<style>
+body  { font-family:verdana,calibri,arial; font-size:14px; margin:0; padding:0; overflow:hidden}  
+div   { font-size:14px; margin:0; padding:0; }
+sql { display:none }
+table, td, th { border-collapse:collapse; border:1px solid #ccc; padding:4px; }
+th  { background:#eee; text-align:left }
+
+#list { margin:2px; padding:0px; list-style-type:none; }
+#list li { margin:2px; padding:6px; border-bottom:1px solid grey; }
+#list li:hover { background:lightgrey }
+#list .folder { background:#ffd700;text-shadow:1px 1px; }
+#modal  { display:none;z-index:3;padding-top:180px;position:fixed;left:0;top:0;width:100%;height:100%;overflow:auto;background:rgba(0,0,0,0.5)}
+#dialog { margin:auto; background:#eee; position:relative; padding:8px; width:900px }
+#dialog textarea { padding:8px; height:200px; width:880px; }
+#dialog h3       { padding:8px; margin:0px; background:#eee; border:1px solid grey }
+#dialog button   { float:right; margin:10px 12px; font-size:14px }
+#dbparm td:first-child { padding:8px; background:#efd; }
+
+@media print{
+  #header, #left-panel, button, #modal { display:none!important }
+  #right-panel { position:relative!important; width:99%!important; left:0px!important; height:auto!important; border:none!important }
+}
+</style>
+
+<body>
+<div id="header" style="background:#0057b7; color:#ffd700; height:20px; padding:12px;">
+  <div id="heading" style="float:left;font-size:14px;font-weight:bold">DB Schema</div>
+  <div id="top-right" style="float:right">
+    <input id=keyword name=keyword placeholder="keyword" size=16 onchange="app.retrieve(this)">&nbsp;
+    <button onclick="app.retrieve()">Search</button>
+    <button onclick="print()">Print</button>
+    <button onclick="app.about()">About</button>
+  </div>
+</div>
+
+<div id="content">
+  <div id="left-panel" style="float:left; overflow:auto; width:320px; background:#f8f8f8"; height:500px></div>
+  <div id="right-panel" style="float:right; overflow:auto; width: calc(100% - 324px)">
+    <div id=dbparm style="margin:30px; position:relative; padding:8px; width:900px">
+		<h2>DB Schema for Oracle</h2>
+		<p><br>Please specify the connection parameters for oracle database<br></p>
+		<table id=dbparm width=400>
+		  <tr><td>Description<td><input id=dbtitle size=32/></tr>
+		  <tr><td>DB Server <td><input id=dbserver size=32/></tr>
+		  <tr><td>DB Name   <td><input id=dbname size=32/></tr>
+		  <tr><td>User ID   <td><input id=dbuser size=32/>
+		  <tr><td>Password  <td><input id=dbpass size=32 type=password/>
+		</table>
+		<br><br><button onclick="app.connectdb()">Connect Database</button>
+	</div>  
+  </div>
+</div>
+
+<div id="modal">
+  <div id="dialog"></div>
+</div>
+</body>
+
+<!-- =============================== SQL ========================= -->
+<sql id="sql-table-list">
+select (case when comments is null then '9' else '0' end) as sorting
+   , (case when comments like '[%]%' then substr(comments,2,instr(comments,']')-2) else table_type end) as folder
+   , (case when comments is null then null else substr(comments,instr(comments,']')+1) end) as comments 
+   , table_name, table_type 
+ from USER_TAB_COMMENTS a
+ where upper(table_name||';'||comments) like '%{keyword}%'
+   or exists (select 1 from USER_COL_COMMENTS x where x.table_name=a.table_name and upper(column_name||';'||comments) like '%{keyword}%')
+ order by 1, 2, 4
+</sql>
+
+<sql id="sql-column-list">
+select COLUMN_ID as ID, TABLE_NAME, COLUMN_NAME, NULLABLE, DATA_TYPE
+     , (case when DATA_TYPE like '%CHAR%' then CHAR_LENGTH else DATA_LENGTH end) as DATA_LENGTH 
+     , (select comments from USER_COL_COMMENTS x where x.table_name=a.table_name and a.column_name=x.column_name) as comments
+     , (select 'PK' from all_cons_columns y
+         where y.column_name = a.column_name
+           and constraint_name = (select constraint_name from user_constraints x where x.table_name=a.table_name and constraint_type='P')
+        ) as PKEY
+ from user_tab_columns a
+where table_name='{name}' 
+order by 1,2,3
+</sql>
+
+<script language="javascript">
+//=======================================================================================
+// Log: 20220706, v0.70, CK Hung
+//=======================================================================================
+var app = function(x) { return window.document.getElementById(x) };
+
+//=== set element align to bottom
+app.height = function (name, bottom) {
+  if (bottom>0) {
+    app(name).style.height = bottom + 'px'
+  } else if (bottom<=0) {   
+    app(name).style.height = (window.innerHeight + bottom - app(name).getBoundingClientRect().top)+'px'
+  }  
+  return app(name).offsetHeight
+}
+
+window.onbeforeunload = function () { 
+  if (app.dbConnecton) app.dbConnecton.close();
+}
+
+app.connectdb = function () {
+  app.dbTitle = app('heading').innerText = app('dbtitle').value
+  app.datasource = '(description=(address=(protocol=tcp)(host=' + app('dbserver').value
+  app.datasource += ')(port=1521))(connect_data=(service_name=' + app('dbname').value + ')) )'
+  app.connectString = 'Provider=MSDAORA;Data Source=' + app.datasource + ';User ID=' + app('dbuser').value 
+  app.dbConnecton  = new ActiveXObject('ADODB.Connection')
+  app.dbConnecton.Open( app.connectString + ';Password=' + app('dbpass').value );
+  app.retrieve()
+}
+
+// load table list, show in left panel
+app.retrieve = function (opt) {
+  app.keyword = app('keyword').value
+  app.sql = app("sql-table-list").innerText.replace( /\{keyword}/g, app.keyword.toUpperCase() )
+
+  app.dbRows = new ActiveXObject("ADODB.Recordset")	
+  app.dbRows.open( app.sql, app.dbConnecton )
+
+  var folder ='Undefined'
+  var html1 = '<ul id="list">'
+  var html2 = '<div style="padding:12px"><h2>' + app.dbTitle + '</h2>'
+  
+  for (app.rowCount=0; !app.dbRows.eof; app.rowCount++) {
+	if ( folder != app.dbRows.fields('folder') ) {
+	  folder = ''+app.dbRows.fields('folder')
+	  html1 +=  '<li class="folder" onclick="app.toggleFolder(this)">' + folder + '</li>'
+	  if (folder!='TABLE' && folder!='VIEW') {
+		html2 += (app.rowCount==0? '' : '</table>') + '<h3>' + folder + '</h3>'
+		html2 += '<table width=95%><tr><th>Table Name<th>Description</tr>'
+	  }  
+	}
+	
+	html1 += '<li onclick="app.showTable(this)" title="' + (app.dbRows.fields('comments')||'') + '" ' 
+	html1 += 'class="' + folder + '" type="' + app.dbRows.fields('table_type') + '">' 
+	html1 += app.dbRows.fields('table_name') + '</li>'
+	
+	if (folder=='TABLE' || folder=='VIEW') {
+	 html1 = html1.replace( folder+'" type=', folder+'" style="display:none;color:#888" type=' ) 
+	} else {
+	 html2 += '<tr><td width=230px valign=top>' + app.dbRows.fields('table_name') + '</td>' 
+	 html2 += '<td>' + (app.dbRows.fields('comments')+'').replace(/\n/g,'<br>') + '</td></tr>'
+	}
+	
+    app.dbRows.MoveNext();
+  }
+  
+  app.dbRows.Close()
+  app("left-panel").innerHTML = html1 + '</ul>'
+  app("right-panel").innerHTML = html2 + '</table></div>'
+  
+}  
+
+// toggle folder
+app.toggleFolder = function (item) {
+  var items = app('list').getElementsByClassName(item.innerText)
+  
+  for (var i=0; i<items.length; i++) {
+     items[i].style.display = (items[i].style.display=='none'? 'block' : 'none')
+  }
+}
+
+// highlight and show table definition 
+app.showTable = function (item) {
+
+  // highlight selected item   
+  if (!item) return
+  if (app.selected) app.selected.style.background = ''
+  app.selected = item 
+  app.folder   = item.className
+  app.selected.style.background = 'lightblue'
+  
+  // show table definition
+  app.tableName = item.innerText
+  app.tableType = item.getAttribute('type')
+  app.tableDesc = item.title || 'No description, DoubleClick to edit.'
+
+  app.sql = app("sql-column-list").innerText.replace( '{name}', app.tableName )
+  app.dbRows = new ActiveXObject("ADODB.Recordset")	
+  app.dbRows.open( app.sql, app.dbConnecton )
+
+  var  html = '<div style="padding:12px"><h3>' + app.tableName + '</h3>' 
+  html += '<p ondblclick="app.editComments()">' + app.tableDesc.replace(/\n/g,'<br>') + '</p>'
+  html += '<table width=98%><tr><th>ID <th width=180px>Column Name <th>Type <th>length <th>Null <th>PKey <th>Comments </tr>'
+
+  while (!app.dbRows.eof) {
+	html += '<tr><td>' + app.dbRows.fields('ID') + '</td>'
+	html += '<td>' + app.dbRows.fields('COLUMN_NAME') + '</td>'
+	html += '<td>' + app.dbRows.fields('DATA_TYPE') + '</td>'
+	html += '<td>' + app.dbRows.fields('DATA_LENGTH') + '</td>'
+	html += '<td>' + app.dbRows.fields('NULLABLE') + '</td>'
+	html += '<td>' + (app.dbRows.fields('PKEY')=='PK'? 'PK' : ' ') + '</td>';
+	html += '<td ondblclick="app.editComments(this)" title="' + app.dbRows.fields('COLUMN_NAME') + '">'
+	html += (app.dbRows.fields('COMMENTS').value||'') + '</td></tr>'
+    app.dbRows.MoveNext();
+  }
+  
+  app.dbRows.Close()
+  app("right-panel").innerHTML = (app.keyword? html.replace( new RegExp(app.keyword,'gim'),'<mark>$&</mark>') : html)
+}
+
+// edit comments
+app.editComments = function (item) {
+  var html = '<h3>Edit comments for '
+
+  if (item==null) {
+    app.update = 'COMMENT ON TABLE ' + app.tableName
+    html += app.tableType + ' ' + app.tableName + '</h3>'
+    html += '<p><b>Folder:</b>&nbsp; <input id=folder value="' + app.folder + '" ></p>'
+    html += '<textarea id=comments>' + app.tableDesc.trim() + '</textarea>'
+  } else {
+    app.colName = item.title
+    app.colDesc = item.innerText || ''   
+    app.update = 'COMMENT ON COLUMN ' + app.tableName + '.' + app.colName 
+    html += 'column ' + app.colName + '</h3><textarea id=comments>' + app.colDesc + '</textarea>'
+  }
+  
+  html += '<button accesskey="C" onclick="app(\'modal\').style.display=\'none\'">Close</button>'
+  html += '<button accesskey="S" onclick="app.saveComments()">Save</button><br><br><br>'
+
+  app('modal').style.display = 'block'
+  app('dialog').innerHTML = html
+  app('comments').focus()
+}
+                              
+// save comments
+app.saveComments = function () {
+  app.comment = (app('folder')? '[' + app('folder').value + '] ' : '' ) + app('comments').value  
+  app.sql = app.update + " IS '" + app.comment.replace(/'/g,"''") + "'"
+  app.dbConnecton.Execute( app.sql )
+  
+  if (app('folder')) {
+    app.retrieve() 
+  } else {
+    app.showTable( app.selected ) 
+  }  
+  app('modal').style.display = 'none'
+}
+
+// show about dialog
+app.about = function () {
+  alert(hta.applicationName + '\n Version: ' + hta.version + '\n\n Agent: ' + window.navigator.userAgent )
+}
+
+// window initiative
+window.onload = function () {
+
+  document.title = hta.applicationName    
+  app.height('left-panel', -4) 
+  app.height('right-panel', -4)
+
+  //===== initial db connection parameters =====
+  app('dbtitle').value = 'Database Schema of HR DB'
+  app('dbserver').value = '192.168.0.211'
+  app('dbname').value = 'XE'
+  app('dbuser').value = 'hr'
+  app('dbpass').value = 'hr'
+  //app.connectdb()
+  //===== end of db parameters ====================
+}
+</script>
+
+
