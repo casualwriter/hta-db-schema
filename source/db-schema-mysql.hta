@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <head>
 	<hta:application id=hta borderStyle="normal" windowstate="maximize"
-	     applicationName="DB Schema (Oracle)" version="0.80@20220711" />   
+	     applicationName="DB Schema (MySql)" version="0.80@20220711" />   
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<meta http-equiv="x-ua-compatible" content="ie=9">    
 	<meta name="viewport" content="width=device-width, initial-scale=1">
@@ -46,14 +46,11 @@ th  { background:#eee; text-align:left }
   <div id="right-panel" style="float:right; overflow:auto; width: calc(100% - 324px)">
     <div id=dbparm style="margin:30px; position:relative; padding:8px; width:900px">
 		<h2>DB Schema for Oracle</h2>
-		<p><br>Please specify the connection parameters for oracle database<br></p>
+		<p><br>Please create <mark>ODBC entry for mysql db</mark> connection, and input the ODBC name</p>
 		<table id=dbparm width=400>
+		  <tr><th>ADO Driver<th><input id=dbdriver size=32 value="Provider=MSDASQL" readonly /></tr>
 		  <tr><td>Description<td><input id=dbtitle size=32 /></tr>
-		  <tr><td>ADO Driver<td><input id=dbdriver size=32 value="Provider=MSDASQL" readonly /></tr>
-		  <tr><td>DB Server <td><input id=dbserver size=32 /></tr>
-		  <tr><td>DB Name   <td><input id=dbname size=32 /></tr>
-		  <tr><td>User ID   <td><input id=dbuser size=32 />
-		  <tr><td>Password  <td><input id=dbpass size=32 type=password />
+		  <tr><td>ODBC DSN<td><input id=dbodbc size=32 /></tr>
 		</table>
 		<br><br><button onclick="app.connectdb()">Connect Database</button>
 	</div>  
@@ -67,32 +64,22 @@ th  { background:#eee; text-align:left }
 
 <!-- =============================== SQL ========================= -->
 <sql id="sql-table-list">
-select (case when comments is null then '9' else '0' end) as sorting
-   , (case when comments like '[%]%' then substr(comments,2,instr(comments,']')-2) else table_type end) as folder
-   , (case when comments is null then null else substr(comments,instr(comments,']')+1) end) as comments 
-   , table_name, table_type 
- from USER_TAB_COMMENTS a
- where upper(table_name||';'||comments) like '%{keyword}%'
-   or exists (select 1 from USER_COL_COMMENTS x where x.table_name=a.table_name and upper(column_name||';'||comments) like '%{keyword}%')
- order by 1, 2, 4
+select if( table_comment>' ', '0', '9') as sorting
+   , if( table_comment like '[%]%', substr(table_comment,2, instr(table_comment,']')-2), table_type) as folder
+   , if( table_comment > '', substr(table_comment, instr(table_comment,']')+1), '' ) as comments
+   , table_name, table_type, table_comment
+ from INFORMATION_SCHEMA.tables a
+where table_schema=database()
+order by 1,2, table_name
 </sql>
 
 <sql id="sql-column-list">
-select COLUMN_ID as ID, TABLE_NAME, COLUMN_NAME, NULLABLE, DATA_TYPE
-     , (case when DATA_TYPE like '%CHAR%' then CHAR_LENGTH else DATA_LENGTH end) as DATA_LENGTH 
-     , (select comments from USER_COL_COMMENTS x where x.table_name=a.table_name and a.column_name=x.column_name) as comments
-     , (select 'PK' from all_cons_columns y
-         where y.column_name = a.column_name
-           and constraint_name = (select constraint_name from user_constraints x where x.table_name=a.table_name and constraint_type='P')
-        ) as PKEY
- from user_tab_columns a
-where table_name='{name}' 
-order by 1,2,3
+SHOW FULL COLUMNS FROM {name}
 </sql>
 
 <script language="javascript">
 //=======================================================================================
-// Log: 20220706, v0.70, CK Hung
+// Log: 20220711, v0.71, CK Hung, revised oracle version into mysql-version
 //=======================================================================================
 var app = function(x) { return window.document.getElementById(x) };
 
@@ -112,18 +99,16 @@ window.onbeforeunload = function () {
 
 app.connectdb = function () {
   app.dbTitle = app('heading').innerText = app('dbtitle').value
-  app.datasource = '(description=(address=(protocol=tcp)(host=' + app('dbserver').value
-  app.datasource += ')(port=1521))(connect_data=(service_name=' + app('dbname').value + ')) )'
-  app.connectString = 'Provider=MSDAORA;Data Source=' + app.datasource + ';User ID=' + app('dbuser').value 
+  app.connectString = app('dbdriver').value + ';DSN=' + app('dbodbc').value
   app.dbConnecton  = new ActiveXObject('ADODB.Connection')
-  app.dbConnecton.Open( app.connectString + ';Password=' + app('dbpass').value );
+  app.dbConnecton.Open( app.connectString );
   app.retrieve()
 }
 
 // load table list, show in left panel
 app.retrieve = function (opt) {
   if (!app.dbConnecton) app.connectdb();
-  
+
   app.keyword = app('keyword').value
   app.sql = app("sql-table-list").innerText.replace( /\{keyword}/g, app.keyword.toUpperCase() )
 
@@ -148,7 +133,7 @@ app.retrieve = function (opt) {
 	html1 += 'class="' + folder + '" type="' + app.dbRows.fields('table_type') + '">' 
 	html1 += app.dbRows.fields('table_name') + '</li>'
 	
-	if (folder=='TABLE' || folder=='VIEW') {
+	if (folder=='TABLE' || folder=='VIEW' || folder=='BASE TABLE') {
 	 html1 = html1.replace( folder+'" type=', folder+'" style="display:none;color:#888" type=' ) 
 	} else {
 	 html2 += '<tr><td width=230px valign=top>' + app.dbRows.fields('table_name') + '</td>' 
@@ -192,19 +177,19 @@ app.showTable = function (item) {
   app.dbRows = new ActiveXObject("ADODB.Recordset")	
   app.dbRows.open( app.sql, app.dbConnecton )
 
-  var  html = '<div style="padding:12px"><h3>' + app.tableName + '</h3>' 
+  var html = '<div style="padding:12px"><h3>' + app.tableName + '</h3>' 
   html += '<p ondblclick="app.editComments()">' + app.tableDesc.replace(/\n/g,'<br>') + '</p>'
-  html += '<table width=98%><tr><th>ID <th width=180px>Column Name <th>Type <th>length <th>Null <th>PKey <th>Comments </tr>'
-
+  html += '<table width=98%><tr><th>ID<th width=180px>Column Name<th>Type<th>Null<th>Key<th>Default<th>Comments</tr>'
+  app.row = 0;
   while (!app.dbRows.eof) {
-	html += '<tr><td>' + app.dbRows.fields('ID') + '</td>'
-	html += '<td>' + app.dbRows.fields('COLUMN_NAME') + '</td>'
-	html += '<td>' + app.dbRows.fields('DATA_TYPE') + '</td>'
-	html += '<td>' + app.dbRows.fields('DATA_LENGTH') + '</td>'
-	html += '<td>' + app.dbRows.fields('NULLABLE') + '</td>'
-	html += '<td>' + (app.dbRows.fields('PKEY')=='PK'? 'PK' : ' ') + '</td>';
-	html += '<td ondblclick="app.editComments(this)" title="' + app.dbRows.fields('COLUMN_NAME') + '">'
-	html += (app.dbRows.fields('COMMENTS').value||'') + '</td></tr>'
+	html += '<tr><td>' + (++app.row) + '</td>'
+	html += '<td>' + app.dbRows.fields('field') + '</td>'
+	html += '<td>' + app.dbRows.fields('type') + '</td>'
+	html += '<td>' + app.dbRows.fields('null') + '</td>'
+	html += '<td>' + (app.dbRows.fields('key')||'') + '</td>';
+	html += '<td>' + (app.dbRows.fields('default').value||'') + '</td>';
+	html += '<td ondblclick="app.editComments(this)" title="' + app.dbRows.fields('FIELD') + '">'
+	html += (app.dbRows.fields('comment').value||'') + '</td></tr>'
     app.dbRows.MoveNext();
   }
   
@@ -217,14 +202,15 @@ app.editComments = function (item) {
   var html = '<h3>Edit comments for '
 
   if (item==null) {
-    app.update = 'COMMENT ON TABLE ' + app.tableName + " IS '{comment}' "
+    app.update = 'ALTER TABLE ' + app.tableName + ' COMMENT="{comment}"'
     html += app.tableType + ' ' + app.tableName + '</h3>'
     html += '<p><b>Folder:</b>&nbsp; <input id=folder value="' + app.folder + '" ></p>'
     html += '<textarea id=comments>' + app.tableDesc.trim() + '</textarea>'
   } else {
+    return alert('sorry, not support modify mysql comment for safety concern.')
     app.colName = item.title
     app.colDesc = item.innerText || ''   
-    app.update = 'COMMENT ON COLUMN ' + app.tableName + '.' + app.colName + " IS '{comment}' "
+    app.update = 'COMMENT ON COLUMN ' + app.tableName + '.' + app.colName 
     html += 'column ' + app.colName + '</h3><textarea id=comments>' + app.colDesc + '</textarea>'
   }
   
@@ -257,16 +243,14 @@ app.about = function () {
 
 // window initiative
 window.onload = function () {
+
   document.title = hta.applicationName    
   app.height('left-panel', -4) 
   app.height('right-panel', -4)
 
   //===== initial db connection parameters =====
-  app('dbtitle').value = 'Database Schema of Oracle DB'
-  app('dbserver').value = '192.168.0.211'
-  app('dbname').value = 'XE'
-  app('dbuser').value = 'hr'
-  app('dbpass').value = 'hr'
+  app('dbtitle').value = 'Database Schema of MySql DB'
+  app('dbodbc').value = 'mysqlDSN'
   //app.connectdb()
   //===== end of db parameters ====================
 }
