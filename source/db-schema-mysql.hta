@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <head>
 	<hta:application id=hta borderStyle="normal" windowstate="maximize"
-	     applicationName="DB Schema (MySql)" version="0.80@20220711" />   
+	     applicationName="DB Schema (MySQL)" version="0.80@20220711" />   
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<meta http-equiv="x-ua-compatible" content="ie=9">    
 	<meta name="viewport" content="width=device-width, initial-scale=1">
@@ -45,8 +45,8 @@ th  { background:#eee; text-align:left }
   <div id="left-panel" style="float:left; overflow:auto; width:320px; background:#f8f8f8"; height:500px></div>
   <div id="right-panel" style="float:right; overflow:auto; width: calc(100% - 324px)">
     <div id=dbparm style="margin:30px; position:relative; padding:8px; width:900px">
-		<h2>DB Schema for Oracle</h2>
-		<p><br>Please create <mark>ODBC entry for mysql db</mark> connection, and input the ODBC name</p>
+		<h2>DB Schema for MySQL</h2>
+		<p><br>Please create <mark>ODBC entry for MySQL db</mark> connection, and input the ODBC name</p>
 		<table id=dbparm width=400>
 		  <tr><th>ADO Driver<th><input id=dbdriver size=32 value="Provider=MSDASQL" readonly /></tr>
 		  <tr><td>Description<td><input id=dbtitle size=32 /></tr>
@@ -79,7 +79,7 @@ SHOW FULL COLUMNS FROM {name}
 
 <script language="javascript">
 //=======================================================================================
-// Log: 20220711, v0.71, CK Hung, revised oracle version into mysql-version
+// Log: 20220711, v0.71, CK Hung, revised oracle version into MySQL-version
 //=======================================================================================
 var app = function(x) { return window.document.getElementById(x) };
 
@@ -207,7 +207,7 @@ app.editComments = function (item) {
     html += '<p><b>Folder:</b>&nbsp; <input id=folder value="' + app.folder + '" ></p>'
     html += '<textarea id=comments>' + app.tableDesc.trim() + '</textarea>'
   } else {
-    return alert('sorry, not support modify mysql comment for safety concern.')
+    return alert('sorry, not support modify MySQL comment for safety concern.')
     app.colName = item.title
     app.colDesc = item.innerText || ''   
     app.update = 'COMMENT ON COLUMN ' + app.tableName + '.' + app.colName 
@@ -249,8 +249,8 @@ window.onload = function () {
   app.height('right-panel', -4)
 
   //===== initial db connection parameters =====
-  app('dbtitle').value = 'Database Schema of MySql DB'
-  app('dbodbc').value = 'mysqlDSN'
+  app('dbtitle').value = 'Database Schema of MySQL DB'
+  app('dbodbc').value = 'MySQLDsn'
   //app.connectdb()
   //===== end of db parameters ====================
 }

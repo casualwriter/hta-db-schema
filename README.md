@@ -1,11 +1,11 @@
 # hta-db-schema
 
-Document DB Schema for Oracle/Mysql (using hta script)
+Document DB Schema for Oracle/MySQL (using hta script)
 
 This is a simple hta script to show/document oracle tables/views. 
 
 * For Oracle, it use OLEDB (driver=MSDAORA)
-* For MySql, it use ODBC for mysql
+* For MySQL, it use ODBC for MySQL
 
 no more dependance.
 
@@ -49,12 +49,12 @@ You may edit below script (bottom of file, line 262) to setup the default DB con
   //===== end of db parameters ====================
 ~~~  
 
-For MySql, 
+For MySQL, 
 
 {{
   //===== initial db connection parameters =====
-  app('dbtitle').value = 'Database Schema of MySql'
-  app('dbodbc').value = 'mysqlDSN'
+  app('dbtitle').value = 'Database Schema of MySQL'
+  app('dbodbc').value = 'MySqlDsn'
   //app.connectdb()
   //===== end of db parameters ====================
 }}
@@ -62,5 +62,5 @@ For MySql,
 
 ## Modification Log
 
-* 2022/07/06, v0.70, initial version, for oracle DB
-* 2022/07/11, v0.80, add mysql version
+* 2022/07/06, v0.70, initial version, for Oracle DB
+* 2022/07/11, v0.80, add MySql version
