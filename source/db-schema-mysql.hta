@@ -69,7 +69,13 @@ select if( table_comment>' ', '0', '9') as sorting
    , if( table_comment > '', substr(table_comment, instr(table_comment,']')+1), '' ) as comments
    , table_name, table_type, table_comment
  from INFORMATION_SCHEMA.tables a
-where table_schema=database()
+where table_schema=database() 
+  and ( upper(table_name) like '%{keyword}%' 
+        or upper(table_comment) like '%{keyword}%'
+        or exists (select 1 from INFORMATION_SCHEMA.columns b
+                    where a.table_schema=b.table_schema and a.table_name=b.table_name
+                      and ( upper(column_name) like '%{keyword}%' or upper(column_comment) like '%{keyword}%')  
+		)   )			  
 order by 1,2, table_name
 </sql>
 
@@ -79,7 +85,7 @@ SHOW FULL COLUMNS FROM {name}
 
 <script language="javascript">
 //=======================================================================================
-// Log: 20220711, v0.71, CK Hung, revised oracle version into MySQL-version
+// Log: 20220711, v0.80, CK Hung, revised oracle version into MySQL-version
 //=======================================================================================
 var app = function(x) { return window.document.getElementById(x) };
 
