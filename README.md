@@ -51,13 +51,13 @@ You may edit below script (bottom of file, line 262) to setup the default DB con
 
 For MySQL, 
 
-{{
+~~~
   //===== initial db connection parameters =====
   app('dbtitle').value = 'Database Schema of MySQL'
   app('dbodbc').value = 'MySqlDsn'
   //app.connectdb()
   //===== end of db parameters ====================
-}}
+~~~
 
 
 ## Modification Log
